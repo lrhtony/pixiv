@@ -6,7 +6,7 @@ import time
 import certifi
 import pymongo
 import requests
-from flask import Flask
+from flask import Flask, redirect
 
 app = Flask(__name__)
 
@@ -64,13 +64,14 @@ def gate(image_id):
     def save_pixiv_token(client, token):
         db = client['environment']
         db.pixiv.update_one({"key": "PIXIV_ACCESS_TOKEN"}, {"$set": {"value": token['value'],
-                                                                           "expireIn": token['expireIn']}})
+                                                                     "expireIn": token['expireIn']}})
 
     def save_illust_cache(client, illust_information):
         db = client['cache']
         db.illust.insert_one(illust_information)
 
     mongo_url = os.getenv("MONGO_URL")
+    proxy_host = os.getenv("PROXY_HOST")
     print(mongo_url)
     main_client = pymongo.MongoClient(mongo_url, tlsCAFile=certifi.where())  # 只构建一个client
     pixiv_path = os.path.splitext(image_id)[0]  # 分割提取pid和序号
@@ -90,7 +91,9 @@ def gate(image_id):
     thread_get_illust_cache.join()
     if cache['status']:  # 如果存在缓存
         try:
-            return cache['images_url'][illust_index - 1]  # 直接处理数据返回
+            img_url = cache['images_url'][illust_index - 1]
+            img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
+            return redirect(img_proxy_url, 307)  # 直接处理数据返回
         except IndexError:
             return '超过该id图片数量上限', 404
     thread_get_pixiv_token.join()  # 剩下没有缓存的情况
@@ -98,12 +101,14 @@ def gate(image_id):
         thread_save_pixiv_token = threading.Thread(target=save_pixiv_token, args=(main_client, access_token,))
         thread_save_pixiv_token.start()
     illust = get_illust(access_token['value'], pixiv_id)
-    if illust['type'] == 0:
-        del illust['type']
-        thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
+    if illust['type'] == 0:  # 判断是图片信息还是错误
+        del illust['type']  # 删除用于判断返回类型的值
+        thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))  # 存入缓存
         thread_save_illust_cache.start()
         try:
-            return illust['images_url'][illust_index - 1]
+            img_url = illust['images_url'][illust_index - 1]
+            img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
+            return redirect(img_proxy_url, 307)
         except IndexError:
             return '超过该id图片数量上限', 404
     elif illust['type'] == 404 or illust['type'] == 500:
@@ -141,7 +146,7 @@ def get_illust(access_token: str, pid: int):
         illust['type'] = 0
         print(illust)
         return illust
-    except KeyError:
+    except KeyError:  # 处理返回错误信息的情况
         user_message = data['error']['user_message']
         sys_message = data['error']['user_message']
         if user_message != '':
@@ -155,4 +160,3 @@ def get_illust(access_token: str, pid: int):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
