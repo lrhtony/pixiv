@@ -6,7 +6,7 @@
     },
     {
       "src": "/favicon.ico",
-      "dest": "favicon.ico"
+      "dest": "/favicon.ico"
     },
     {
       "src": "/(.*)",
