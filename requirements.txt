@@ -1,4 +1,4 @@
 pymongo[srv]~=3.12.1
 requests==2.25.1
-Flask==1.1.4
+Flask==2.0.2
 certifi~=2021.5.30
