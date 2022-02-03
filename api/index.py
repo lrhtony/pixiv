@@ -5,6 +5,7 @@ import time
 import certifi
 import pymongo
 import requests
+from datetime import datetime
 from flask import Flask, redirect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -15,7 +16,7 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["30 per minute"],
     storage_uri=os.getenv("MONGO_URI"),
-    storage_options={"tlsCAFile": certifi.where()}
+    storage_options={"tlsCAFile": certifi.where(), "serverSelectionTimeoutMS": 2000, "socketTimeoutMS": 2000}
 )
 # app.config.update(
 #     PIXIV_REFRESH_TOKEN='',
@@ -31,16 +32,16 @@ def gate(image_id):
 
     def get_illust_cache(client, pid: int):
         db = client['cache']
-        try:
-            result = db.illust.find({"pid": pid})[0]
-            print(result)
+        result = db.illust.find_one_and_update({"pid": pid}, {"$set": {"latest_visit_time": datetime.utcnow()}})
+        print(result)
+        if result is None:
+            print('无结果')
+            cache['status'] = False
+        else:
             cache['status'] = True
             cache['pid'] = result['pid']
             cache['images_url'] = result['images_url']
             cache['sanity_level'] = result['sanity_level']
-        except IndexError:
-            print('无结果')
-            cache['status'] = False
 
     access_token = {}  # 用于多进程返回值
 
@@ -48,7 +49,7 @@ def gate(image_id):
         refresh_token = os.getenv("PIXIV_REFRESH_TOKEN")  # 在服务器端使用
         # refresh_token = app.config["PIXIV_REFRESH_TOKEN"]
         db = client['environment']
-        result = db.pixiv.find({"key": "PIXIV_ACCESS_TOKEN"})[0]
+        result = db.pixiv.find_one({"key": "PIXIV_ACCESS_TOKEN"})
         print(result)
         access_token['value'] = result['value']
         access_token['expireAt'] = result['expireAt']
@@ -82,6 +83,7 @@ def gate(image_id):
 
     def save_illust_cache(client, illust_information):
         db = client['cache']
+        illust_information['latest_visit_time'] = datetime.utcnow()
         db.illust.update_one({"pid": illust_information['pid']}, {"$set": illust_information}, upsert=True)
 
     mongo_uri = os.getenv("MONGO_URI")
