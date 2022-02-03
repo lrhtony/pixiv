@@ -2,13 +2,26 @@
 import os
 import threading
 import time
-
 import certifi
 import pymongo
 import requests
 from flask import Flask, redirect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["30 per minute"],
+    storage_uri=os.getenv("MONGO_URI"),
+    storage_options={"tlsCAFile": certifi.where()}
+)
+# app.config.update(
+#     PIXIV_REFRESH_TOKEN='',
+#     MONGO_URI='',
+#     PROXY_HOST=''
+# )
 
 
 @app.route('/<image_id>')
@@ -33,12 +46,13 @@ def gate(image_id):
 
     def get_pixiv_token(client):
         refresh_token = os.getenv("PIXIV_REFRESH_TOKEN")  # 在服务器端使用
+        # refresh_token = app.config["PIXIV_REFRESH_TOKEN"]
         db = client['environment']
         result = db.pixiv.find({"key": "PIXIV_ACCESS_TOKEN"})[0]
         print(result)
         access_token['value'] = result['value']
-        access_token['expireIn'] = result['expireIn']
-        if access_token['expireIn'] - 500 < time.time():  # 判断过期
+        access_token['expireAt'] = result['expireAt']
+        if access_token['expireAt'] - 500 < time.time():  # 判断过期
             print('access_token已过期')
             response = requests.post(  # 刷新token
                 "https://oauth.secure.pixiv.net/auth/token",
@@ -53,7 +67,7 @@ def gate(image_id):
             )
             data = response.json()
             access_token['value'] = data["access_token"]
-            access_token['expireIn'] = round(time.time()) + 3600  # 设置过期时间
+            access_token['expireAt'] = round(time.time()) + 3600  # 设置过期时间
             access_token['refresh'] = True
             print(access_token)
         else:
@@ -64,16 +78,17 @@ def gate(image_id):
     def save_pixiv_token(client, token):
         db = client['environment']
         db.pixiv.update_one({"key": "PIXIV_ACCESS_TOKEN"}, {"$set": {"value": token['value'],
-                                                                     "expireIn": token['expireIn']}})
+                                                                     "expireAt": token['expireAt']}})
 
     def save_illust_cache(client, illust_information):
         db = client['cache']
         db.illust.insert_one(illust_information)
 
-    mongo_url = os.getenv("MONGO_URL")
+    mongo_uri = os.getenv("MONGO_URI")
     proxy_host = os.getenv("PROXY_HOST")
-    print(mongo_url)
-    main_client = pymongo.MongoClient(mongo_url, tlsCAFile=certifi.where())  # 只构建一个client
+    # mongo_uri = app.config['MONGO_URI']
+    # proxy_host = app.config["PROXY_HOST"]
+    main_client = pymongo.MongoClient(mongo_uri, tlsCAFile=certifi.where())  # 只构建一个client
     pixiv_path = os.path.splitext(image_id)[0]  # 分割提取pid和序号
     pixiv_path_spilt = pixiv_path.split('-', 1)
     try:

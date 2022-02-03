@@ -22,7 +22,8 @@ https://pixiv.shojo.cn/34844544-1
 1. 准备好MongoDB
     1. 到[MongoDB官网](https://www.mongodb.com/)获取一个免费的MongoDB数据库。由于使用的是Vercel免费的Serverless服务，因此尽量选择在美国AWS的数据库。
     2. 在数据库中分别创建在`cache`database下的`illust`collection和在`environment`database下的`pixiv`collection
-    3. 记住该数据库的地址
+    3. 在`pixiv`下创建`PIXIV_ACCESS_TOKEN`，如图所示![HEOgEt.md.jpg](https://s4.ax1x.com/2022/02/03/HEOgEt.md.jpg)
+    4. 记住该数据库的地址，暂时不支持`mongo+srv://`格式的uri
 2. 准备好pixiv的`refresh_token`
     - 使用[该脚本](https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362)获取`refresh_token`
 3. 搭建图片反向代理
@@ -43,10 +44,17 @@ https://pixiv.shojo.cn/34844544-1
                     'User-Agent': 'Cloudflare Workers'
                 }
                 })
-            );
+              );
             });
             ```
 4. 部署到[Vercel](https://vercel.com)
     1. 点击按钮[![Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/lrhtony/pixiv)
-    2. 在部署时配置环境变量`MONGO_URL`为步骤1的MongoDB地址，
+    2. 在部署时配置环境变量`MONGO_URI`为步骤1的MongoDB地址，
     `PIXIV_REFRESH_TOKEN`为步骤2获取的`refresh_token`，`PROXY_HOST`为步骤3配置的反向代理服务器host，注意不要有`http/https`的协议头
+
+## 感谢
+[upbit/pixivpy](https://github.com/upbit/pixivpy)
+
+[ZipFile](https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362)
+
+[alisaifee/flask-limiter](https://github.com/alisaifee/flask-limiter)

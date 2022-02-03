@@ -1,4 +1,5 @@
-pymongo[srv]~=3.12.1
-requests==2.25.1
+pymongo==4.0.1
+requests==2.27.1
 Flask==2.0.2
-certifi~=2021.5.30
+certifi==2021.10.8
+flask-limiter==2.1.3
