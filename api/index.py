@@ -82,7 +82,7 @@ def gate(image_id):
 
     def save_illust_cache(client, illust_information):
         db = client['cache']
-        db.illust.update_one({"pid": illust_information['pid']}, illust_information, upsert=True)
+        db.illust.update_one({"pid": illust_information['pid']}, {"$set": illust_information}, upsert=True)
 
     mongo_uri = os.getenv("MONGO_URI")
     proxy_host = os.getenv("PROXY_HOST")
