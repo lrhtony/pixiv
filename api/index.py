@@ -2,6 +2,7 @@
 import os
 import threading
 import time
+import json
 import certifi
 import pymongo
 import requests
@@ -24,6 +25,24 @@ limiter = Limiter(
 #     PROXY_HOST=''
 # )
 
+r18_template = '''
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>该图片已被屏蔽</title>
+<head>
+<body>
+<h1>该图片已被屏蔽</h1>
+<p>该图片可能涉及r18内容，为保证网站正常运行，已将其屏蔽</p>
+<p>您可点击下方地址继续访问</p>
+<p><a href="{url}" target="_blank">{url}</a></p>
+<h2>更多信息</h2>
+{info}
+</body>
+</html>
+'''
 
 @app.route('/<image_id>')
 def gate(image_id):
@@ -109,8 +128,14 @@ def gate(image_id):
     if cache['status']:  # 如果存在缓存
         try:
             img_url = cache['images_url'][illust_index - 1]
-            img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
-            return redirect(img_proxy_url, 307)  # 直接处理数据返回
+            sanity_level = cache['sanity_level']
+            if sanity_level <= 4:
+                img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
+                return redirect(img_proxy_url, 307)
+            else:
+                img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
+                info = json.dumps(cache)
+                return r18_template.format(url=img_proxy_url, info=info), 403
         except IndexError:
             return '超过该id图片数量上限', 404
     thread_get_pixiv_token.join()  # 剩下没有缓存的情况
@@ -124,8 +149,14 @@ def gate(image_id):
         thread_save_illust_cache.start()
         try:
             img_url = illust['images_url'][illust_index - 1]
-            img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
-            return redirect(img_proxy_url, 307)
+            sanity_level = illust['sanity_level']
+            if sanity_level <= 4:
+                img_proxy_url = img_url.replace('i.pximg.net', proxy_host)
+                return redirect(img_proxy_url, 307)
+            else:
+                img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
+                info = json.dumps(illust)
+                return r18_template.format(url=img_proxy_url, info=info), 403
         except IndexError:
             return '超过该id图片数量上限', 404
     elif illust['type'] == 404 or illust['type'] == 500:
