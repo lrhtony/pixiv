@@ -155,6 +155,7 @@ def gate(image_id):
                 return redirect(img_proxy_url, 307)
             else:
                 img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
+                del illust['latest_visit_time']
                 info = json.dumps(illust)
                 return r18_template.format(url=img_proxy_url, info=info), 403
         except IndexError:
