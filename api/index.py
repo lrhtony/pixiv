@@ -38,6 +38,7 @@ r18_template = '''
 <p>该图片可能涉及r18内容，为保证网站正常运行，已将其屏蔽</p>
 <p>您可点击下方地址继续访问</p>
 <p><a href="{url}" target="_blank">{url}</a></p>
+<p><img src="https://i0.hdslb.com/bfs/album/703118c9b166f1f70d45d983f38eb5756752c1f7.jpg" alt="不可以色色" referrer="no-referrer"></p>
 <h2>更多信息</h2>
 {info}
 </body>
