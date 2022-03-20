@@ -11,6 +11,10 @@ from flask import Flask, redirect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+'''
+该代码待重构！！！！！！！！！！！！！！！！！！
+'''
+
 app = Flask(__name__)
 limiter = Limiter(
     app,
@@ -44,6 +48,7 @@ r18_template = '''
 </body>
 </html>
 '''
+
 
 @app.route('/<image_id>')
 def gate(image_id):
