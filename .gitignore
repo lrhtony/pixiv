@@ -1,3 +1,7 @@
-test-*
+api/test
 .idea
 1.txt
+node_modules
+css
+tailwind.config.js
+*.json

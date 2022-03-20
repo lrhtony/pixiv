@@ -9,6 +9,10 @@
       "dest": "/favicon.ico"
     },
     {
+      "src": "/src/(.*)",
+      "dest": "/src/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api"
     }
