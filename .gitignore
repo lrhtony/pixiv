@@ -5,3 +5,4 @@ node_modules
 css
 tailwind.config.js
 *.json
+.vercel
