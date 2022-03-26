@@ -1,7 +1,7 @@
 {
   "cleanUrls": true,
   "redirects": [
-    {"source": "/(.*)", "has": [{"type": "query", "key": "pid", "value": "(?<pid>.*)"}], "destination": "/:pid"}
+    {"source": "/", "has": [{"type": "query", "key": "pid", "value": "(?<pid>.*)"}], "destination": "/:pid"}
   ],
   "rewrites": [
     {"source": "/", "destination": "/index.html"},
