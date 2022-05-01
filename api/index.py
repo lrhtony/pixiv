@@ -6,7 +6,7 @@ import certifi
 import pymongo
 import requests
 from datetime import datetime, timedelta
-from flask import Flask, redirect
+from flask import Flask, make_response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -69,22 +69,9 @@ def main(image_id):
     thread_get_illust_cache.join()
 
     print('[Illust_Cache]', illust)
-    if illust['status']:  # 如果存在缓存
-        if illust['type'] == 0:  # 缓存中图片"type"为0
-            if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
-                img_url = illust['images_url'][illust_index - 1]
-                sanity_level = illust['sanity_level']
-                if sanity_level <= 4:  # 如果图片安全等级不超过4
-                    img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
-                    return redirect(img_proxy_url, 307)
-                else:
-                    img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
-                    info = json.dumps(illust)
-                    return R18_TEMPLATE.format(url=img_proxy_url, info=info), 403
-            else:  # 索引超出范围
-                return '超过该id图片数量上限', 404
-        elif illust['type'] == 404:  # 缓存中图片"type"为404
-            return '该图片不存在，或者缓存未刷新', 404
+    if illust['cache']:  # 如果存在缓存
+        response = return_response(main_client, illust, illust_index)
+        return response
 
     thread_get_pixiv_token.join()  # 剩下没有缓存的情况
     if access_token['refresh']:  # 如果刷新了token
@@ -92,28 +79,8 @@ def main(image_id):
         thread_save_pixiv_token.start()
 
     illust = get_illust(pixiv_id, access_token['value'])
-    if illust['type'] == 0:
-        if illust['status']:
-            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
-            thread_save_illust_cache.start()
-            if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
-                img_url = illust['images_url'][illust_index - 1]
-                sanity_level = illust['sanity_level']
-                if sanity_level <= 4:  # 如果图片安全等级不超过4
-                    img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
-                    return redirect(img_proxy_url, 307)
-                else:
-                    img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
-                    info = json.dumps(illust)
-                    return R18_TEMPLATE.format(url=img_proxy_url, info=info), 403
-            else:  # 索引超出范围
-                return '超过该id图片数量上限', 404
-    elif illust['type'] == 404:
-        thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
-        thread_save_illust_cache.start()
-        return "该图片不存在", 404
-    elif illust['type'] == 500:
-        return '当前请求过多，请稍后再试', 500
+    response = return_response(main_client, illust, illust_index)
+    return response
 
 
 @app.route('/purge/<image_id>')
@@ -126,11 +93,11 @@ def get_illust_cache(client, pid: int, illust: dict):
     result = db.illust_new.find_one_and_update({"pid": pid}, {
         "$set": {"expireAt": datetime.utcnow() + timedelta(seconds=app.config['CACHE_EXPIRE_TIME'])}})
     if result is None:
-        illust['status'] = False  # cache无结果，标记
+        illust['cache'] = False  # cache无结果，标记
     else:
         if result['type'] == 0:
             illust.update({
-                'status': True,
+                'cache': True,
                 'pid': result['pid'],
                 'type': 0,
                 'images_url': result['images_url'],
@@ -138,7 +105,7 @@ def get_illust_cache(client, pid: int, illust: dict):
             })
         elif result['type'] == 404:
             illust.update({
-                'status': True,
+                'cache': True,
                 'pid': result['pid'],
                 'type': 404,
                 'message': result['message']
@@ -207,7 +174,7 @@ def get_illust(pid: int, access_token: str):
                 image_url = meta['image_urls']['original']
                 images_url.append(image_url)
         illust = {
-            'status': True,
+            'cache': False,
             'pid': data['illust']['id'],
             'type': 0,
             'images_url': images_url,
@@ -222,13 +189,13 @@ def get_illust(pid: int, access_token: str):
                 'pid': pid,
                 'type': 404,
                 'message': user_message,
-                'status': True
+                'cache': False
             }
         elif sys_message != '':  # Rate Limit的情况
             illust = {
                 'type': 500,
                 'message': sys_message,
-                'status': True
+                'cache': False
             }
         return illust
 
@@ -250,6 +217,32 @@ def save_illust_cache(client, illust):
                                                                        seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
 
 
+def return_response(main_client, illust, illust_index):
+    if illust['type'] == 0:
+        if not illust['cache']:
+            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
+            thread_save_illust_cache.start()
+        if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
+            img_url = illust['images_url'][illust_index - 1]
+            sanity_level = illust['sanity_level']
+            if sanity_level <= 4:  # 如果图片安全等级不超过4
+                img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
+                headers = {'Location': img_proxy_url, 'Set-Cookie': 'access=1; Max-Age=15; Domain={0}; Secure; HttpOnly'.format(app.config['PROXY_HOST'])}
+                return make_response('<html></html>', 307, headers)
+            else:
+                img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
+                info = json.dumps(illust)
+                return make_response(R18_TEMPLATE.format(url=img_proxy_url, info=info), 403)
+        else:  # 索引超出范围
+            return make_response('超过该id图片数量上限', 404)
+    elif illust['type'] == 404:
+        if not illust['cache']:
+            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
+            thread_save_illust_cache.start()
+        return make_response('该图片不存在，或者缓存未刷新', 404)
+    elif illust['type'] == 500:
+        return make_response('当前请求过多，请稍后再试', 500)
+
+
 if __name__ == '__main__':
     app.run(debug=True)
-
