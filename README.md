@@ -31,7 +31,7 @@ https://pixiv.shojo.cn/34844544-1
     - 若无法自建反向代理服务器，可以使用Cloudflare的服务
         - 若有顶级域名，可将域名通过NS/CDN方式接入Cloudflare，记录类型选择`CNAME`，名称根据你的需要填入，内容填入`i.pximg.net`，并开启代理。然后在`规则->转换规则`处，创建`修改请求头`规则，如下图设置![7vdVLq.jpg](https://s4.ax1x.com/2022/01/28/7vdVLq.jpg)
         - 若无顶级域名，则使用Cloudflare Workers搭建反向代理，每日100,000次请求，参考代码来自[pixiv.cat](https://pixiv.re/reverseproxy.html)
-            ```
+            ```javascript
             addEventListener("fetch", event => {
             let url = new URL(event.request.url);
             url.hostname = "i.pximg.net";
