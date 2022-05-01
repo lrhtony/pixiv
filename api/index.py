@@ -6,7 +6,7 @@ import certifi
 import pymongo
 import requests
 from datetime import datetime, timedelta
-from flask import Flask, make_response
+from flask import Flask, make_response, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -90,7 +90,7 @@ def purge_cache(image_id):
 
 def get_illust_cache(client, pid: int, illust: dict):
     db = client['cache']
-    result = db.illust_new.find_one_and_update({"pid": pid}, {
+    result = db.illust.find_one_and_update({"pid": pid}, {
         "$set": {"expireAt": datetime.utcnow() + timedelta(seconds=app.config['CACHE_EXPIRE_TIME'])}})
     if result is None:
         illust['cache'] = False  # cache无结果，标记
@@ -203,18 +203,18 @@ def get_illust(pid: int, access_token: str):
 def save_illust_cache(client, illust):
     db = client['cache']
     if illust['type'] == 0:  # type为0时存入cache
-        db.illust_new.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
-                                                                   'type': illust['type'],
-                                                                   'images_url': illust['images_url'],
-                                                                   'sanity_level': illust['sanity_level'],
-                                                                   'expireAt': datetime.utcnow() + timedelta(
-                                                                       seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
+        db.illust.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
+                                                               'type': illust['type'],
+                                                               'images_url': illust['images_url'],
+                                                               'sanity_level': illust['sanity_level'],
+                                                               'expireAt': datetime.utcnow() + timedelta(
+                                                                seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
     elif illust['type'] == 404:  # type为404时存入cache
-        db.illust_new.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
-                                                                   'type': illust['type'],
-                                                                   'message': illust['message'],
-                                                                   'expireAt': datetime.utcnow() + timedelta(
-                                                                       seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
+        db.illust.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
+                                                               'type': illust['type'],
+                                                               'message': illust['message'],
+                                                               'expireAt': datetime.utcnow() + timedelta(
+                                                                seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
 
 
 def return_response(main_client, illust, illust_index):
@@ -225,7 +225,7 @@ def return_response(main_client, illust, illust_index):
         if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
             img_url = illust['images_url'][illust_index - 1]
             sanity_level = illust['sanity_level']
-            if sanity_level <= 4:  # 如果图片安全等级不超过4
+            if sanity_level <= 4 or request.cookies.get('bypass', 0, type=int) == 1:  # 如果图片安全等级不超过4
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 headers = {'Location': img_proxy_url, 'Set-Cookie': 'access=1; Max-Age=15; Domain={0}; Secure; HttpOnly'.format(app.config['PROXY_HOST'])}
                 return make_response('<html></html>', 307, headers)
