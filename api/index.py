@@ -228,7 +228,7 @@ def return_response(main_client, illust, illust_index):
             if sanity_level <= 4 or request.cookies.get('bypass', 0, type=int) == 1:  # 如果图片安全等级不超过4
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 headers = {'Location': img_proxy_url, 'Set-Cookie': 'access=1; Max-Age=15; Domain={0}; Secure; '
-                                                                    'HttpOnly； SameSite=None'.format(app.config['PROXY_HOST'])}
+                                                                    'HttpOnly; SameSite=None'.format(app.config['PROXY_HOST'])}
                 return make_response('<html></html>', 307, headers)
             else:
                 img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
