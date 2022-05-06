@@ -225,7 +225,7 @@ def return_response(main_client, illust, illust_index):
         if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
             img_url = illust['images_url'][illust_index - 1]
             sanity_level = illust['sanity_level']
-            if sanity_level <= 4 or request.cookies.get('bypass', 0, type=int) == 1:  # 如果图片安全等级不超过4
+            if app.config['R18_LIMIT'] is False or sanity_level <= 4 or request.cookies.get('bypass', 0, type=int) == 1:  # 任意一个条件满足都可不进行屏蔽
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 cookie_domain = app.config['PROXY_HOST'].split('.')[-2] + '.' + app.config['PROXY_HOST'].split('.')[-1]
                 headers = {'Location': img_proxy_url,
