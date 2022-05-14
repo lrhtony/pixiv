@@ -19,9 +19,10 @@ https://pixiv.shojo.cn/34844544-1
 最后使用access_token，请求pixiv的api获取图片数据，存入MongoDB中的的缓存并返回给用户
 
 ## 部署方法
+> 此部分待更新
 1. 准备好MongoDB
-    1. 到[MongoDB官网](https://www.mongodb.com/)获取一个免费的MongoDB数据库。由于使用的是Vercel免费的Serverless服务，因此尽量选择在美国AWS的数据库。
-    2. 在数据库中分别创建在`cache`database下的`illust`collection和在`environment`database下的`pixiv`collection
+    1. 到[MongoDB官网](https://www.mongodb.com/)获取一个免费的MongoDB数据库。由于使用的是Vercel免费的Serverless服务，考虑到连接速度，因此尽量选择位于美国AWS的数据库。
+    2. 在数据库中分别创建在`cache`database下的`illust`collection和在`secrets`database下的`pixiv`collection
     3. 在`pixiv`下创建`PIXIV_ACCESS_TOKEN`，如图所示![HEOgEt.md.jpg](https://s4.ax1x.com/2022/02/03/HEOgEt.md.jpg)
     4. 记住该数据库的地址
 2. 准备好pixiv的`refresh_token`

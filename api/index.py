@@ -93,7 +93,7 @@ def purge_cache(image_id):
     purge_method = request.args.get('method')
     db = main_client['cache']
     if purge_method is None or purge_method == 'expire':
-        result = db['illust'].find_one_and_update({'pid': pixiv_id}, {'$set': {'expireAt': datetime.utcnow()}})
+        result = db['illust'].find_one_and_update({'pid': pixiv_id}, {'$set': {'expire': datetime.utcnow()}})
         if result is None:
             return '缓存不存在', 404
         else:
