@@ -16,7 +16,7 @@ app.config.update(  # Vercel部署时使用
     MONGO_URI=os.getenv('MONGO_URI'),
     PROXY_HOST=os.getenv('PROXY_HOST'),
     RATE_LIMIT=os.getenv('RATE_LIMIT', '30 per minute'),
-    R18_LIMIT=bool(os.getenv('R18_LIMIT', 'False')),
+    R18_LIMIT=json.loads(os.getenv('R18_LIMIT', 'False').lower()),
     CACHE_EXPIRE_TIME=int(os.getenv('CACHE_EXPIRE_TIME', '259200')),
     PROXY=json.loads(os.getenv('PROXY', '{}'))
 )
@@ -39,10 +39,12 @@ limiter = Limiter(
                      "connectTimeoutMS": 100000}
 )
 
+main_client = pymongo.MongoClient(app.config['MONGO_URI'], tlsCAFile=certifi.where())  # 只构建一个client
+
 R18_TEMPLATE = '''<!DOCTYPE html> <html lang="zh"> <head> <meta charset="UTF-8"> <meta name="viewport" 
 content="width=device-width, initial-scale=1.0"> <title>该图片已被屏蔽</title> <head> <body> <h1>该图片已被屏蔽</h1> 
-<p>该图片可能涉及r18内容，为保证网站正常运行，已将其屏蔽</p> <p>您可点击下方地址继续访问</p> <p><a href="{url}" target="_blank">{url}</a></p> <p><img 
-src="https://i0.hdslb.com/bfs/album/703118c9b166f1f70d45d983f38eb5756752c1f7.jpg" alt="不可以色色" 
+<p>该图片可能涉及r18内容，恰独食了，不给你看(ノω<。)ノ))☆.。</p> <p>您可点击下方地址继续访问</p> <p><a href="{url}" target="_blank">{url}</a></p> 
+<p><img src="https://i0.hdslb.com/bfs/album/703118c9b166f1f70d45d983f38eb5756752c1f7.jpg" alt="不可以色色" 
 referrerPolicy="no-referrer" height="300" width="300"></p> <h2>更多信息</h2> {info} </body> </html> '''
 
 
@@ -50,7 +52,6 @@ referrerPolicy="no-referrer" height="300" width="300"></p> <h2>更多信息</h2>
 def main(image_id):
     access_token = {}
     illust = {}
-    main_client = pymongo.MongoClient(app.config['MONGO_URI'], tlsCAFile=certifi.where())  # 只构建一个client
     pixiv_path = os.path.splitext(image_id)[0]  # 分割提取pid和序号
     pixiv_path_spilt = pixiv_path.split('-', 1)  # 从-分开形成列表，前者为pixiv_id，后者为索引
     try:
@@ -85,12 +86,31 @@ def main(image_id):
 
 @app.route('/purge/<image_id>')
 def purge_cache(image_id):
-    return "清除缓存功能，建设中..."
+    try:  # 输入参数处理
+        pixiv_id = int(image_id)
+    except ValueError:
+        return "请求格式错误", 404  # 输入参数错误
+    purge_method = request.args.get('method')
+    db = main_client['cache']
+    if purge_method is None or purge_method == 'expire':
+        result = db['illust'].find_one_and_update({'pid': pixiv_id}, {'$set': {'expire': datetime.utcnow()}})
+        if result is None:
+            return '缓存不存在', 404
+        else:
+            return '已提交清除缓存请求，请1分钟后再试', 200
+    elif purge_method == 'delete':
+        result = db['illust'].find_one_and_delete({'pid': pixiv_id})
+        if result is None:
+            return '缓存不存在', 404
+        else:
+            return '已清除缓存', 200
+    else:
+        return '未知方法', 404
 
 
 def get_illust_cache(client, pid: int, illust: dict):
     db = client['cache']
-    result = db.illust.find_one_and_update({"pid": pid}, {
+    result = db['illust'].find_one_and_update({"pid": pid}, {
         "$set": {"expireAt": datetime.utcnow() + timedelta(seconds=app.config['CACHE_EXPIRE_TIME'])}})
     if result is None:
         illust['cache'] = False  # cache无结果，标记
@@ -115,7 +135,7 @@ def get_illust_cache(client, pid: int, illust: dict):
 def get_pixiv_token(client, access_token: dict):
     refresh_token = app.config['PIXIV_REFRESH_TOKEN']
     db = client['secrets']
-    result = db.pixiv.find_one({"key": "PIXIV_ACCESS_TOKEN"})
+    result = db['pixiv'].find_one({"key": "PIXIV_ACCESS_TOKEN"})
     print('[Token_Cache]', result)
     access_token['value'] = result['value']
     access_token['expireAt'] = result['expireAt']
@@ -144,8 +164,8 @@ def get_pixiv_token(client, access_token: dict):
 
 def save_pixiv_token(client, access_token):
     db = client['secrets']
-    db.pixiv.update_one({"key": "PIXIV_ACCESS_TOKEN"}, {"$set": {"value": access_token['value'],
-                                                                 "expireAt": access_token['expireAt']}}, upsert=True)
+    db['pixiv'].update_one({"key": "PIXIV_ACCESS_TOKEN"}, {"$set": {"value": access_token['value'],
+                                                                    "expireAt": access_token['expireAt']}}, upsert=True)
 
 
 def get_illust(pid: int, access_token: str):
@@ -203,29 +223,30 @@ def get_illust(pid: int, access_token: str):
 def save_illust_cache(client, illust):
     db = client['cache']
     if illust['type'] == 0:  # type为0时存入cache
-        db.illust.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
-                                                               'type': illust['type'],
-                                                               'images_url': illust['images_url'],
-                                                               'sanity_level': illust['sanity_level'],
-                                                               'expireAt': datetime.utcnow() + timedelta(
-                                                                seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
+        db['illust'].update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
+                                                                  'type': illust['type'],
+                                                                  'images_url': illust['images_url'],
+                                                                  'sanity_level': illust['sanity_level'],
+                                                                  'expireAt': datetime.utcnow() + timedelta(
+                                                                      seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
     elif illust['type'] == 404:  # type为404时存入cache
-        db.illust.update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
-                                                               'type': illust['type'],
-                                                               'message': illust['message'],
-                                                               'expireAt': datetime.utcnow() + timedelta(
-                                                                seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
+        db['illust'].update_one({"pid": illust['pid']}, {"$set": {'pid': illust['pid'],
+                                                                  'type': illust['type'],
+                                                                  'message': illust['message'],
+                                                                  'expireAt': datetime.utcnow() + timedelta(
+                                                                      seconds=app.config['CACHE_EXPIRE_TIME'])}}, upsert=True)
 
 
-def return_response(main_client, illust, illust_index):
+def return_response(client, illust, illust_index):
     if illust['type'] == 0:
         if not illust['cache']:
-            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
+            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(client, illust,))
             thread_save_illust_cache.start()
         if len(illust['images_url']) >= illust_index:  # 如果索引在范围内
             img_url = illust['images_url'][illust_index - 1]
             sanity_level = illust['sanity_level']
-            if sanity_level <= 4 or request.cookies.get('bypass', 0, type=int) == 1:  # 如果图片安全等级不超过4
+            if app.config['R18_LIMIT'] is False or sanity_level <= 4 or request.cookies.get('bypass', 0,
+                                                                                            type=int) == 1:  # 任意一个条件满足都可不进行屏蔽
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 cookie_domain = app.config['PROXY_HOST'].split('.')[-2] + '.' + app.config['PROXY_HOST'].split('.')[-1]
                 headers = {'Location': img_proxy_url,
@@ -239,7 +260,7 @@ def return_response(main_client, illust, illust_index):
             return make_response('超过该id图片数量上限', 404)
     elif illust['type'] == 404:
         if not illust['cache']:
-            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(main_client, illust,))
+            thread_save_illust_cache = threading.Thread(target=save_illust_cache, args=(client, illust,))
             thread_save_illust_cache.start()
         return make_response('该图片不存在，或者缓存未刷新', 404)
     elif illust['type'] == 500:
@@ -247,4 +268,4 @@ def return_response(main_client, illust, illust_index):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=443)
+    app.run(debug=True)
