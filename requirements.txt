@@ -1,6 +1,6 @@
-pymongo[srv]==4.1.1
-requests==2.27.1
-Flask==2.1.2
-certifi==2021.10.8
-flask-limiter==2.4.5.1
-limits==2.6.2
+pymongo[srv]==4.4.1
+requests==2.31.0
+Flask==2.3.2
+certifi
+flask-limiter==3.3.1
+limits==3.5.0

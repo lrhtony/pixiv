@@ -10,6 +10,7 @@ from flask import Flask, make_response, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+
 app = Flask(__name__)
 app.config.update(  # Vercel部署时使用
     PIXIV_REFRESH_TOKEN=os.getenv('PIXIV_REFRESH_TOKEN'),
@@ -31,15 +32,16 @@ app.config.update(  # Vercel部署时使用
 # )
 
 limiter = Limiter(
-    app,
-    key_func=get_remote_address,
+    get_remote_address,
+    app=app,
     default_limits=[app.config['RATE_LIMIT']],
+    strategy='fixed-window-elastic-expiry',
     storage_uri=app.config['MONGO_URI'],
     storage_options={"tlsCAFile": certifi.where(), "serverSelectionTimeoutMS": 100000, "socketTimeoutMS": 100000,
                      "connectTimeoutMS": 100000}
 )
 
-main_client = pymongo.MongoClient(app.config['MONGO_URI'], tlsCAFile=certifi.where())  # 只构建一个client
+main_client = getattr(limiter.storage, 'storage')  # 获取由limiter创建的连接，减少连接数和延迟
 
 R18_TEMPLATE = '''<!DOCTYPE html> <html lang="zh"> <head> <meta charset="UTF-8"> <meta name="viewport" 
 content="width=device-width, initial-scale=1.0"> <title>该图片已被屏蔽</title> <head> <body> <h1>该图片已被屏蔽</h1> 
@@ -250,7 +252,7 @@ def return_response(client, illust, illust_index):
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 cookie_domain = app.config['PROXY_HOST'].split('.')[-2] + '.' + app.config['PROXY_HOST'].split('.')[-1]
                 headers = {'Location': img_proxy_url,
-                           'Set-Cookie': 'access=1; Max-Age=15; Domain={0}; Secure; HttpOnly'.format(cookie_domain)}
+                           'Set-Cookie': 'access=1; Max-Age=60; Domain={0}; Secure; HttpOnly'.format(cookie_domain)}
                 return make_response('<html></html>', 307, headers)
             else:
                 img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
