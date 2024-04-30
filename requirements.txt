@@ -1,5 +1,5 @@
 pymongo[srv]==4.1.1
-requests==2.27.1
+requests==2.31.0
 Flask==2.2.5
 certifi==2022.12.7
 flask-limiter==2.4.5.1
