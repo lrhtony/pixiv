@@ -250,7 +250,7 @@ def return_response(client, illust, illust_index):
                 img_proxy_url = img_url.replace('i.pximg.net', app.config['PROXY_HOST'])
                 cookie_domain = app.config['PROXY_HOST'].split('.')[-2] + '.' + app.config['PROXY_HOST'].split('.')[-1]
                 headers = {'Location': img_proxy_url,
-                           'Set-Cookie': 'access=1; Max-Age=15; Domain={0}; Secure; HttpOnly'.format(cookie_domain)}
+                           'Set-Cookie': 'access=1; Max-Age=120; Domain={0}; Secure; HttpOnly'.format(cookie_domain)}
                 return make_response('<html></html>', 307, headers)
             else:
                 img_proxy_url = img_url.replace('i.pximg.net', 'i.pixiv.re')
